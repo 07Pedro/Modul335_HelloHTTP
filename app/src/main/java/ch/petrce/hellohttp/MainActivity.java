@@ -18,6 +18,8 @@ import androidx.core.view.WindowInsetsCompat;
 
 import org.json.JSONObject;
 
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -41,22 +43,21 @@ public class MainActivity extends AppCompatActivity {
 
 
     private void buttonPress() {
-        TextView responseTextView = findViewById(R.id.textHttp); // response code
+        TextView responseTextView = findViewById(R.id.responseCode); // response code
+        TextView responseMessageView = findViewById(R.id.responseMessage); // response message
 
         View myButton = findViewById(R.id.buttonHttp); // Button
-        View progress = findViewById(R.id.progressBar); // progress circle
-        myButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                if (isNetworkAvailable()) {
-                    myButton.setEnabled(false); // Disable button while in HTTP request
-                    progress.setVisibility(View.VISIBLE);
-                    new Thread(() -> {
-                        try {
-                            // Prepare JSON object
-                            @SuppressLint("SimpleDateFormat") SimpleDateFormat sdf = new SimpleDateFormat("dd.MM.yyyy HH:mm");
-                            String currentDateAndTime = sdf.format(new Date()); // Current timestamp
-                            String androidVersion = Build.VERSION.RELEASE; // Android version
+        View progress = findViewById(R.id.progressBar); // Progress circle
+        myButton.setOnClickListener(v -> {
+            if (isNetworkAvailable()) {
+                myButton.setEnabled(false); // Disable button while in HTTP request
+                progress.setVisibility(View.VISIBLE);
+                new Thread(() -> {
+                    try {
+                        // Prepare JSON object
+                        @SuppressLint("SimpleDateFormat") SimpleDateFormat sdf = new SimpleDateFormat("dd.MM.yyyy HH:mm");
+                        String currentDateAndTime = sdf.format(new Date()); // Current timestamp
+                        String androidVersion = Build.VERSION.RELEASE; // Android version
 
                             JSONObject main = new JSONObject(); // JSON object
                             main.put("timestamp", currentDateAndTime); // Add timestamp to JSON
@@ -76,15 +77,24 @@ public class MainActivity extends AppCompatActivity {
                                 os.write(input, 0, input.length);
                             }
 
-                            int responseCode = urlConnection.getResponseCode(); // Get response code
-                            String response = "Response Code: " + responseCode; // Set response code
+                        int responseCode = urlConnection.getResponseCode(); // Get response code
+                        StringBuilder response = new StringBuilder();
+                        try (BufferedReader br = new BufferedReader(new InputStreamReader(urlConnection.getInputStream(), "utf-8"))) {
+                            String responseLine;
+                            while ((responseLine = br.readLine()) != null) {
+                                response.append(responseLine.trim());
+                            }
+                        }
 
-                            // Handle response on the main thread
-                            runOnUiThread(() -> {
-                                responseTextView.setText(response);
-                                myButton.setEnabled(true); // Enable button after the request is complete
-                                progress.setVisibility(View.INVISIBLE);
-                            });
+                        // Handle response on the main thread
+                        runOnUiThread(() -> {
+                            String responseCodeMessage = "Response Code: " + responseCode;
+                            String responseMessage = "Response Message: " + response.toString();
+                            responseTextView.setText(responseCodeMessage); // Set response code
+                            responseMessageView.setText(responseMessage); // Set response message
+                            myButton.setEnabled(true); // Enable button after the request is complete
+                            progress.setVisibility(View.INVISIBLE);
+                        });
 
                         } catch (Exception e) {
                             e.printStackTrace();
@@ -99,18 +109,12 @@ public class MainActivity extends AppCompatActivity {
                         Toast errorToast = Toast.makeText(MainActivity.this, "Check your internet connection!", Toast.LENGTH_SHORT);
                         errorToast.show();
                 }
-            }
         });
     }
 
     private boolean isNetworkAvailable() {
         ConnectivityManager cm = (ConnectivityManager)getSystemService(Context.CONNECTIVITY_SERVICE);
         NetworkInfo netInfo = cm.getActiveNetworkInfo();
-        if (netInfo != null && netInfo.isConnectedOrConnecting()) {
-            return true;
-        }
-        else {
-            return false;
-        }
+        return netInfo != null && netInfo.isConnectedOrConnecting();
     }
 }
